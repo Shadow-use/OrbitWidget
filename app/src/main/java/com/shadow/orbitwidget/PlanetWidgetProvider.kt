@@ -15,6 +15,18 @@ class PlanetWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.activity_main)
+            
+            // Налаштовуємо клік по віджету для примусового оновлення ракурсу
+            val intent = Intent(context, PlanetWidgetProvider::class.java).apply {
+                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(appWidgetId))
+            }
+            
+            val pendingIntent = PendingIntent.getBroadcast(
+                context, appWidgetId, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            
+            views.setOnClickPendingIntent(R.id.planetViewContainer, pendingIntent)
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
         setupRepeatingAlarm(context)
@@ -38,9 +50,7 @@ class PlanetWidgetProvider : AppWidgetProvider() {
             context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        
-        // Запускаємо таймер: кожні 5 хвилин (5 * 60 * 1000 мілісекунд) надсилаємо сигнал оновлення
-        val interval = 5 * 60 * 1000L
+        val interval = 5 * 60 * 1000L // Ровно 5 хвилин
         alarmManager.setRepeating(
             AlarmManager.RTC,
             System.currentTimeMillis() + interval,
