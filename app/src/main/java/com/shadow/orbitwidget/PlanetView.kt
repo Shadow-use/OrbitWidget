@@ -1,4 +1,4 @@
-// (#) Responsibility: Оптимізоване малювання планети earth.png на чорному тлі зі зменшеною швидкістю
+// (#) Responsibility: Відображення позиції планети відповідно до поточного часу доби (синхронізація з годинником)
 package com.shadow.orbitwidget
 
 import android.content.Context
@@ -7,35 +7,33 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Path
+import android.util.AttributeSet
 import android.view.View
+import java.util.Calendar
 
-class PlanetView(context: Context) : View(context) {
+class PlanetView @JvmOverloads constructor(
+    context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
+) : View(context, attrs, defStyleAttr) {
 
     private var scaledBitmap: Bitmap? = null
-    private var xOffset = 0f
-    private val speed = 1.5f // Зменшили швидкість у 2 рази
     private var isInitialized = false
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // 1. Фарбуємо фон у чорний космічний колір
         canvas.drawColor(Color.BLACK)
 
         val width = width.toFloat()
         val height = height.toFloat()
         if (width == 0f || height == 0f) return
 
-        // Визначаємо розмір нашої планети (круглого вікна)
-        val radius = width.coerceAtMost(height) / 3f // Трохи зменшили радіус, щоб планета акуратно вписалася
+        val radius = width.coerceAtMost(height) / 2f
 
-        // 2. Ініціалізація текстури (робимо ОДИН раз для уникнення ривків)
         if (!isInitialized) {
             val resId = resources.getIdentifier("earth", "drawable", context.packageName)
             if (resId != 0) {
                 val originalBitmap = BitmapFactory.decodeResource(resources, resId)
                 if (originalBitmap != null) {
-                    // Масштабуємо карту так, щоб її висота дорівнювала діаметру нашого кола (2 * radius)
                     val targetHeight = (radius * 2).toInt()
                     val targetWidth = ((targetHeight.toFloat() / originalBitmap.height) * originalBitmap.width).toInt()
                     scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, targetWidth, targetHeight, true)
@@ -46,34 +44,35 @@ class PlanetView(context: Context) : View(context) {
 
         val bitmap = scaledBitmap ?: return
 
-        // 3. Створюємо кругле вікно-маску по центру екрана
+        // 1. Рахуємо поточний час: скільки хвилин пройшло з початку доби
+        val calendar = Calendar.getInstance()
+        val hour = calendar.get(Calendar.HOUR_OF_DAY)
+        val minute = calendar.get(Calendar.MINUTE)
+        val totalMinutesPassed = (hour * 60) + minute
+
+        // 2. Обчислюємо відсоток доби (від 0.0 до 1.0)
+        val dayPercent = totalMinutesPassed.toFloat() / 1440f
+
+        // 3. Зсув карти залежить від часу доби. Повний оберт (bitmap.width) за 24 години
+        val xOffset = -(bitmap.width * dayPercent)
+
+        // Малюємо кругле вікно
         val clipPath = Path().apply {
             addCircle(width / 2, height / 2, radius, Path.Direction.CW)
         }
-        
         canvas.save()
-        canvas.clipPath(clipPath) // Обрізаємо все за межами кола
+        canvas.clipPath(clipPath)
 
-        // Обчислюємо Y-координату, щоб відцентрувати карту по вертикалі всередині кола
         val yOffset = (height / 2) - radius
 
-        // 4. Малюємо карту із поточним зсувом xOffset
+        // Малюємо основну карту
         canvas.drawBitmap(bitmap, xOffset, yOffset, null)
         
-        // Малюємо копію справа для безшовного стику
+        // Малюємо дубль карти справа, щоб не було порожнечі при зсуві
         if (xOffset + bitmap.width < width) {
             canvas.drawBitmap(bitmap, xOffset + bitmap.width, yOffset, null)
         }
 
         canvas.restore()
-
-        // 5. Рухаємо карту для ефекту обертання
-        xOffset -= speed
-        if (Math.abs(xOffset) >= bitmap.width) {
-            xOffset = 0f
-        }
-
-        // Запускаємо перемальовування наступного кадру (анімація)
-        invalidate()
     }
 }
